@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <sstream>
+#include <fstream>
+#include <string>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -13,29 +15,64 @@ using namespace std;
 int main (int argc, char** argv) {
 
     if (argc != 3) {
-        printf("Usage: %s <source.root> <target.root>\n", argv[0]);
+        printf("Usage: %s <source.root> <target.root/.txt>\n", argv[0]);
         return -1;
     }
 
+    bool isRoot = false, isTxt = false;
+    string fileName(argv[2]);
+    if (fileName.find(".root") != string::npos) {
+        isTxt = false;
+        isRoot = true;
+    }
+    if (fileName.find(".txt") != string::npos) {
+        isRoot = false;
+        isTxt = true;
+    }
+
+    if ( !(isRoot || isTxt) ) {
+        printf("[ERROR] - '%s' has to be .root or .txt file!\n", fileName.c_str());
+        return -1;
+    }
+
+    printf("[SETUP] - Writing data to file '%s'\n", fileName.c_str());
+
     // Setup output data
-    TFile output(argv[2], "CREATE");
-    TTree outTree("conductiviTree", "conductiviTree");
+    TFile* output = nullptr;
+    TTree* outTree = nullptr;
+    ofstream outStream;
     double freq, ReY, ImY, MagY, PhaseY;
-    outTree.Branch("freq", &freq);
-    outTree.Branch("ReY", &ReY);
-    outTree.Branch("ImY", &ImY);
-    outTree.Branch("MagY", &MagY);
-    outTree.Branch("PhaseY", &PhaseY);
     double freqErr, ReYErr, ImYErr, MagYErr, PhaseYErr;
-    outTree.Branch("freqErr", &freqErr);
-    outTree.Branch("ReYErr", &ReYErr);
-    outTree.Branch("ImYErr", &ImYErr);
-    outTree.Branch("MagYErr", &MagYErr);
-    outTree.Branch("PhaseYErr", &PhaseYErr);
+    // Root setup
+    if (isRoot) {
+        output = new TFile(argv[2], "CREATE");
+        if ( output->IsZombie() ) {
+            printf("[ERROR] - Cannot create '%s'\n", fileName.c_str());
+            return -1;
+        }
+        outTree = new TTree("conductiviTree", "conductiviTree");
+        outTree->Branch("freq", &freq);
+        outTree->Branch("ReY", &ReY);
+        outTree->Branch("ImY", &ImY);
+        outTree->Branch("MagY", &MagY);
+        outTree->Branch("PhaseY", &PhaseY);
+        outTree->Branch("freqErr", &freqErr);
+        outTree->Branch("ReYErr", &ReYErr);
+        outTree->Branch("ImYErr", &ImYErr);
+        outTree->Branch("MagYErr", &MagYErr);
+        outTree->Branch("PhaseYErr", &PhaseYErr);
+        // Subdir for plots..
+        output->mkdir("plots");
+    }
+    // Txt setup
+    if (isTxt)
+        outStream.open(fileName.c_str(), ofstream::app);
+
+    printf("[SETUP] - Reading '%s'\n", argv[1]);
 
     // Extract input data
-    TFile input(argv[1], "READ");
-    TTree* dataTree = (TTree*)input.Get("data");
+    TFile* input = new TFile(argv[1], "READ");
+    TTree* dataTree = (TTree*)input->Get("data");
     int nSamples;
     double ch1Volt[MAX_SAMPLES], ch2Volt[MAX_SAMPLES], time[MAX_SAMPLES];
     double ch1Vpp, ch2Vpp, ch1f, ch2f, dPhase;
@@ -57,11 +94,9 @@ int main (int argc, char** argv) {
     grMagY.SetName("Magnitude Y");
     grPhaseY.SetName("Phase Y");
 
-    output.mkdir("plots");
-    output.cd("plots");
-
     // Loop over input data
     int nEntries = dataTree->GetEntries();
+    double ResY = 0, ResF = 0;
     for (int iEntry = 0; iEntry < nEntries; iEntry++) {
         dataTree->GetEntry(iEntry);
 
@@ -88,7 +123,6 @@ int main (int argc, char** argv) {
         fSine.SetParameters(0, ch1amp, fset, 0);
         fSine.SetParLimits(1, 0.8*ch1amp, 1.2*ch1amp);  // Amplitude
         gr1.Fit(&fSine, "Q");
-        gr1.Write();
         // Store fit results
         double ch1Vpp_fit   = fSine.GetParameter(1);
         double ch1f_fit     = fSine.GetParameter(2);
@@ -106,7 +140,7 @@ int main (int argc, char** argv) {
         fSine.SetParameters(0, ch2amp, fset, 0);
         fSine.SetParLimits(1, 0.8*ch2amp, 1.2*ch2amp);  // Amplitude
         gr2.Fit(&fSine, "Q");
-        gr2.Write();
+
         // Store fit results
         double ch2Vpp_fit   = fSine.GetParameter(1);
         double ch2f_fit     = fSine.GetParameter(2);
@@ -115,9 +149,6 @@ int main (int argc, char** argv) {
         double ch2fErr      = fSine.GetParError(2);
         double ch2phErr     = fSine.GetParError(3);
         double dPhi         = ch1ph - ch2ph;
-
-        printf("[%3i]\tCH1: %.2fV - %.0fHz - %.1fdeg\n", iEntry, ch1Vpp_fit, ch1f_fit, ch1ph*180./TMath::Pi());
-        printf("\tCH2: %.2fV - %.0fHz - %.1fdeg", ch2Vpp_fit, ch2f_fit, ch2ph*180./TMath::Pi());
 
         // Measurement resistor
         double Rmeas = 975.;    // 1k with 5% tolerance (measured)
@@ -130,7 +161,11 @@ int main (int argc, char** argv) {
         MagY = sqrt(ReY*ReY + ImY*ImY);
         PhaseY = atan2(ImY, ReY) * 180./TMath::Pi();
 
-        printf("\t=>\tMagY=%.2fmS - PhaseY=%.1fdeg\n\n", 1000*MagY, PhaseY);
+        // Find resonance under 15 kHz
+        if ( (MagY > ResY) && (freq < 15000) ) {
+            ResY = MagY;
+            ResF = freq;
+        }
 
         // Errors on ch1 & ch2 amplitude are dominating all other sources!
         ReYErr = sqrt( pow(ch1VppErr/ch2Vpp_fit, 2) +
@@ -139,19 +174,32 @@ int main (int argc, char** argv) {
         MagYErr = ReYErr;
         PhaseYErr = sqrt( ch1phErr*ch1phErr + ch2phErr*ch2phErr ) * 180./TMath::Pi();
 
-        // Create plots
-        int n = grReY.GetN();
-        grReY.SetPoint(n, freq, ReY);
-        grReY.SetPointError(n, freqErr, ReYErr);
-        grImY.SetPoint(n, freq, ImY);
-        grImY.SetPointError(n, freqErr, ImYErr);
-        grMagY.SetPoint(n, freq, MagY);
-        grMagY.SetPointError(n, freqErr, MagYErr);
-        grPhaseY.SetPoint(n, freq, PhaseY);
-        grPhaseY.SetPointError(n, freqErr, PhaseYErr);
+        // Text output!
+        printf("[%3i]\tCH1: %.2fV - %.0fHz - %.1fdeg\n", iEntry, ch1Vpp_fit, ch1f_fit, ch1ph*180./TMath::Pi());
+        printf("\tCH2: %.2fV - %.0fHz - %.1fdeg", ch2Vpp_fit, ch2f_fit, ch2ph*180./TMath::Pi());
+        printf("\t=>\tMagY=%.2fmS - PhaseY=%.1fdeg\n\n", 1000*MagY, PhaseY);
 
-        // Save data
-        outTree.Fill();
+        // Save to root file, if specified
+        if (isRoot) {
+            // Fill plots
+            int n = grReY.GetN();
+            grReY.SetPoint(n, freq, ReY);
+            grReY.SetPointError(n, freqErr, ReYErr);
+            grImY.SetPoint(n, freq, ImY);
+            grImY.SetPointError(n, freqErr, ImYErr);
+            grMagY.SetPoint(n, freq, MagY);
+            grMagY.SetPointError(n, freqErr, MagYErr);
+            grPhaseY.SetPoint(n, freq, PhaseY);
+            grPhaseY.SetPointError(n, freqErr, PhaseYErr);
+
+            // Save transients & fit results
+            output->cd("plots");
+            gr1.Write();
+            gr2.Write();
+
+            // Save other data
+            outTree->Fill();
+        }
     }
 
     // Sort points ascending x values & save!
@@ -160,17 +208,24 @@ int main (int argc, char** argv) {
     grMagY.Sort();
     grPhaseY.Sort();
 
-    output.cd();
+    if (isRoot) {
+        output->cd();
+        grReY.Write();
+        grImY.Write();
+        grMagY.Write();
+        grPhaseY.Write();
+        output->Write();
 
-    grReY.Write();
-    grImY.Write();
-    grMagY.Write();
-    grPhaseY.Write();
-    output.Write();
+        // Cleanup
+        input->Close();
+        output->Close();
+    }
 
-    // Cleanup
-    input.Close();
-    output.Close();
+    // Append to txt file, if specified
+    if (isTxt) {
+        outStream << ResF << "\t" << ResY << "\n";
+        outStream.close();
+    }
 
     return 1;
 }
