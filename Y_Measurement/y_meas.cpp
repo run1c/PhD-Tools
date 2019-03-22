@@ -4,6 +4,7 @@
 #include <string>
 #include <sstream>
 #include <ctime>
+#include <csignal>
 
 #include <RigolDS1000Z.h>
 #include <RigolDG5000.h>
@@ -19,6 +20,13 @@
 #define MAX_SAMPLES 2000
 
 using namespace std;
+
+volatile bool cleanExit = false;
+
+void signalHandler(int sign) {
+    cleanExit = true;
+    return;
+}
 
 int main (int argc, char** argv) {
 
@@ -52,7 +60,7 @@ int main (int argc, char** argv) {
         scope.setOffset(i, 0);  // 0V
     }
     scope.setScale(1, 5);       // 5V/div
-    scope.setScale(2, 2);
+    scope.setScale(2, 5);
     scope.setMode("NORM");      // Save data on screen olny
     scope.setFormat("BYTE");    // Bytewise transfer
     scope.clearMeasurements();
@@ -98,24 +106,30 @@ int main (int argc, char** argv) {
     dataTree.Branch("fset", &fset);
     dataTree.Branch("dPhase", &dPhase);
 
-    /*   Measurement Procedure   */
+    // Register signal handler
+    signal(SIGINT, signalHandler);
 
     printf("[SETUP] - Done!\n");
+
+    /*   Measurement Procedure   */
 
     double timebase;
     int df = fstep;
     for (fset = fstart; fset <= fstop; fset+=df) {
+
+        // Did we receive a sigint (ctrl+c)?
+        if (cleanExit) {
+            printf("[LOOP] - Received SIGINT, closing '%s'...\n", fName);
+            outFile.Write();
+            outFile.Close();
+            exit(SIGINT);
+        }
+
         vector<double> vCh1Volt, vCh2Volt, vTime;
 
         // Adjust scope timebase
         timebase = 1./(fset*4.);
         scope.setTimebase(timebase);
-
-        // Adjust scale
-	    if (fset < 3000)
-    	   scope.setScale(2, 5);
-	    else
-    	   scope.setScale(2, 2);
 
         scope.OPC();
 
@@ -152,6 +166,19 @@ int main (int argc, char** argv) {
 
         // Store data
         dataTree.Fill();
+
+        scope.clearScreen();
+        // Adjust vertical scale for next step
+
+        if (ch2Vpp < 3) {
+            scope.setScale(2, 0.5); // 500mV/Div
+        } else if (ch2Vpp < 6) {
+            scope.setScale(2, 1);   // 1V/Div
+        } else if (ch2Vpp < 12) {
+            scope.setScale(2, 2);   // 2V/Div
+        } else {
+            scope.setScale(2, 5);   // 5V/Div
+        }
 
         // Next loop: if close to a resonance, start microstepping
         if ( (fset%fstep == 0) && (ch2Vpp > 1.)) {
