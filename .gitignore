@@ -1,4 +1,13 @@
+## No root archives
 *.root
+
+## No compiled objects/binaries
 *.o
 *.a
+
+## No graphics
+*.png
+*.pdf
+
+## Ignore DS_Store (Mac)
 .DS_Store
