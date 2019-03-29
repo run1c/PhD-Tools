@@ -1,79 +1,67 @@
-#include "../../../lib/RWTH_style.h"
+#include "../../EnExLib/RWTH_style.h"
 
 void plots_vorstudien() {
 
-    TFile *fSonoxP4 = new TFile("../2d_tonpilz_SonoxP4.root", "OPEN");
-    TFile *fSonoxP8 = new TFile("../2d_tonpilz_SonoxP8.root", "OPEN");
-    TFile *fPIC184 = new TFile("../2d_tonpilz_PIC184.root", "OPEN");
+    /*
+     *      Vergleich der Leitfähigkeiten mit idealem (Datenblatt) und
+     *      realem (Protokoll) PZT-Werkstoff (Sonox P4)
+     */
 
-    TGraphErrors *grMagYSonoxP4  = (TGraphErrors*)fSonoxP4->Get("Magnitude Y");
-    grMagYSonoxP4->SetTitle("Sonox P4");
-    grMagYSonoxP4->SetLineWidth(2);
-    grMagYSonoxP4->SetLineColor(RWTH::kBlau100);
-    grMagYSonoxP4->SetFillColor(RWTH::kBlau100);
-    grMagYSonoxP4->SetFillStyle(3001);
-    TGraphErrors *grReYSonoxP4   = (TGraphErrors*)fSonoxP4->Get("Real Y");
-    grReYSonoxP4->SetLineWidth(2);
-    grReYSonoxP4->SetLineColor(RWTH::kBlau100);
-    grReYSonoxP4->SetFillColor(RWTH::kBlau100);
-    grReYSonoxP4->SetFillStyle(3001);
+    TFile *fIdeal = new TFile("../2d_tonpilz_model_SP4_ideal.root", "OPEN");
+    TFile *fReal = new TFile("../2d_tonpilz_model_SP4_real.root", "OPEN");
 
-    TGraphErrors *grMagYSonoxP8  = (TGraphErrors*)fSonoxP8->Get("Magnitude Y");
-    grMagYSonoxP8->SetTitle("Sonox P8");
-    grMagYSonoxP8->SetLineWidth(2);
-    grMagYSonoxP8->SetLineColor(RWTH::kMagenta100);
-    grMagYSonoxP8->SetFillColor(RWTH::kMagenta100);
-    grMagYSonoxP8->SetFillStyle(3001);
-    TGraphErrors *grReYSonoxP8   = (TGraphErrors*)fSonoxP8->Get("Real Y");
-    grReYSonoxP8->SetLineWidth(2);
-    grReYSonoxP8->SetLineColor(RWTH::kMagenta100);
-    grReYSonoxP8->SetFillColor(RWTH::kMagenta100);
-    grReYSonoxP8->SetFillStyle(3001);
+    TGraphErrors *grMagYIdeal  = (TGraphErrors*)fIdeal->Get("Magnitude Y");
+    grMagYIdeal->SetTitle("Sonox P4 (ideal)");
+    grMagYIdeal->SetLineWidth(2);
+    grMagYIdeal->SetLineColor(RWTH::kBlau100);
+    grMagYIdeal->SetFillColor(RWTH::kBlau100);
+    grMagYIdeal->SetFillStyle(3001);
+    TGraphErrors *grPhYIdeal   = (TGraphErrors*)fIdeal->Get("Phase Y");
+    grPhYIdeal->SetLineWidth(2);
+    grPhYIdeal->SetLineColor(RWTH::kBlau100);
+    grPhYIdeal->SetFillColor(RWTH::kBlau100);
+    grPhYIdeal->SetFillStyle(3001);
 
-    TGraphErrors *grMagYPIC184  = (TGraphErrors*)fPIC184->Get("Magnitude Y");
-    grMagYPIC184->SetTitle("PIC184");
-    grMagYPIC184->SetLineWidth(2);
-    grMagYPIC184->SetLineColor(RWTH::kPetrol100);
-    grMagYPIC184->SetFillColor(RWTH::kPetrol100);
-    grMagYPIC184->SetFillStyle(3001);
-    TGraphErrors *grReYPIC184   = (TGraphErrors*)fPIC184->Get("Real Y");
-    grReYPIC184->SetLineWidth(2);
-    grReYPIC184->SetLineColor(RWTH::kPetrol100);
-    grReYPIC184->SetFillColor(RWTH::kPetrol100);
-    grReYPIC184->SetFillStyle(3001);
+    TGraphErrors *grMagYReal  = (TGraphErrors*)fReal->Get("Magnitude Y");
+    grMagYReal->SetTitle("Sonox P4 (real)");
+    grMagYReal->SetLineWidth(2);
+    grMagYReal->SetLineColor(RWTH::kMagenta100);
+    grMagYReal->SetFillColor(RWTH::kMagenta100);
+    grMagYReal->SetFillStyle(3001);
+    TGraphErrors *grPhYReal   = (TGraphErrors*)fReal->Get("Phase Y");
+    grPhYReal->SetLineWidth(2);
+    grPhYReal->SetLineColor(RWTH::kMagenta100);
+    grPhYReal->SetFillColor(RWTH::kMagenta100);
+    grPhYReal->SetFillStyle(3001);
 
-    TMultiGraph *mgMag = new TMultiGraph("MagY", "Magnitude Y;f [Hz];|Y| [S]");
-    mgMag->Add(grMagYSonoxP4, "L3");
-    mgMag->Add(grMagYSonoxP8, "L3");
-    mgMag->Add(grMagYPIC184, "L3");
+    TMultiGraph *mgMag = new TMultiGraph("MagY", "Magnitude Leitf#ddot{a}higkeit;f [Hz];|Y| [S]");
+    mgMag->Add(grMagYIdeal, "L3");
+    mgMag->Add(grMagYReal, "L3");
     mgMag->GetXaxis()->SetRangeUser(0, 20000);
 
-    TMultiGraph *mgRe = new TMultiGraph("PhY", "Wirkleistung;f [Hz];P [W]");
-    mgRe->Add(grReYSonoxP4, "L3")   ;
-    mgRe->Add(grReYSonoxP8, "L3");
-    mgRe->Add(grReYPIC184, "L3");
-    mgRe->GetXaxis()->SetRangeUser(4000, 16000);
+    TMultiGraph *mgPhY = new TMultiGraph("PhY", "Phase Leitf#ddot{a}higkeit;f [Hz];#theta [#circ]");
+    mgPhY->Add(grPhYIdeal, "L3")   ;
+    mgPhY->Add(grPhYReal, "L3");
+    mgPhY->GetXaxis()->SetRangeUser(4000, 16000);
 
-    TLegend *leg = new TLegend(0.2, 0.3, 0.4, 0.5);
-    leg->AddEntry(grMagYSonoxP4, "Sonox P4");
-    leg->AddEntry(grMagYSonoxP8, "Sonox P8");
-    leg->AddEntry(grMagYPIC184, "PIC184");
+    TLegend *leg = new TLegend(0.75, 0.78, 0.95, 0.90);
+    leg->AddEntry(grMagYIdeal, "Sonox P4 (ideal)");
+    leg->AddEntry(grMagYReal, "Sonox P4 (real)");
 
     TCanvas *c1 = new TCanvas();
     gPad->SetLogy();
     mgMag->Draw("A");
     leg->Draw();
-    c1->SaveAs("mat_comp_y.png");
+    c1->SaveAs("comp_sp4_MagY.png");
 
     TCanvas *c2 = new TCanvas();
-    mgRe->Draw("A");
+    mgPhY->Draw("A");
     leg->Draw();
-    c2->SaveAs("mat_comp_p.png");
+    c2->SaveAs("comp_sp4_PhY.png");
 
     // Cleanup
-    fSonoxP4->Close();
-    fSonoxP8->Close();
-    fPIC184->Close();
+    fIdeal->Close();
+    fReal->Close();
 
     return;
 }
