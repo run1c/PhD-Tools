@@ -147,6 +147,10 @@ int main (int argc, char** argv) {
     grRePwr.SetName("Real Power");
     grImPwr.SetName("Imaginary Power");
 
+    // (Anti-)Resonance +- tolerances
+    double fr, fa;
+    double maxY = 0, minY = 1;
+
     for (int i = 0; i < n; i++) {
         freq = ms_data.getFreq()[i];
         MagY = ms_data.getMagY()[i];
@@ -178,7 +182,58 @@ int main (int argc, char** argv) {
         grRePwr.SetPointError(i, freqErr, RePwrErr);
         grImPwr.SetPoint(i, freq, ImPwr);
         grImPwr.SetPointError(i, freqErr, ImPwrErr);
+
+        // Look for (anti-)resonance
+        if (freq < 3000 || freq > 15000) {    // Check range
+            continue;
+        } else if (MagY > maxY) {  // Max Y value (resonance)
+            maxY = MagY;
+            fr = freq;
+        } else if (MagY < minY) {  // Min Y value (antiresonance)
+            minY = MagY;
+            fa = freq;
+        }
     }
+
+    // Look for tolerances of (anti-)resonance
+    double f, fr1, fr2, fa1, fa2;
+    double minYtol, maxYtol;
+    bool frsw = false, fasw = false;
+
+    for (int i = 0; i < grMagY.GetN(); i++) {
+        f = grMagY.GetX()[i];
+        maxYtol = grMagY.GetY()[i] + grMagY.GetEY()[i];
+        minYtol = grMagY.GetY()[i] - grMagY.GetEY()[i];
+
+        if (f < 3000 || f > 15000)    // Check range
+            continue;
+
+        // Resonance
+        if ( (maxYtol >= maxY) && !frsw) {
+            fr1 = f;
+            frsw = true;
+        }
+
+        if ( (maxYtol <= maxY) && frsw) {
+            fr2 = f;
+            frsw = false;
+        }
+
+        // Antiresonance
+        if ( (minYtol <= minY) && !fasw) {
+            fa1 = f;
+            fasw = true;
+        }
+
+        if ( (minYtol >= minY) && fasw) {
+            fa2 = f;
+            fasw = false;
+        }
+
+    }
+
+    printf("[FOUND] fr=%.0f ± %.0f\n", fr, fr2-fr1);
+    printf("[FOUND] fa=%.0f ± %.0f\n", fa, fa2-fa1);
 
     grReY.Write();
     grImY.Write();

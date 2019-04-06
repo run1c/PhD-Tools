@@ -37,14 +37,16 @@ void plots_vorstudien() {
     TMultiGraph *mgMag = new TMultiGraph("MagY", "Magnitude Leitf#ddot{a}higkeit;f [Hz];|Y| [S]");
     mgMag->Add(grMagYIdeal, "L3");
     mgMag->Add(grMagYReal, "L3");
-    mgMag->GetXaxis()->SetRangeUser(0, 20000);
+    mgMag->GetXaxis()->SetRangeUser(1000, 25000);
 
     TMultiGraph *mgPhY = new TMultiGraph("PhY", "Phase Leitf#ddot{a}higkeit;f [Hz];#theta [#circ]");
-    mgPhY->Add(grPhYIdeal, "L3")   ;
+    mgPhY->Add(grPhYIdeal, "L3");
     mgPhY->Add(grPhYReal, "L3");
-    mgPhY->GetXaxis()->SetRangeUser(4000, 16000);
+    mgPhY->GetXaxis()->SetRangeUser(1000, 25000);
+    mgPhY->GetYaxis()->SetRangeUser(-135, 135);
+    mgPhY->GetYaxis()->SetNdivisions(406, kFALSE);
 
-    TLegend *leg = new TLegend(0.75, 0.78, 0.95, 0.90);
+    TLegend *leg = new TLegend(0.70, 0.78, 0.95, 0.90);
     leg->AddEntry(grMagYIdeal, "Sonox P4 (ideal)");
     leg->AddEntry(grMagYReal, "Sonox P4 (real)");
 
